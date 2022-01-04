@@ -26,45 +26,55 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
--------------------------------*/ 
+-------------------------------*/
 
 #ifndef TSYS01_H_BLUEROBOTICS
 #define TSYS01_H_BLUEROBOTICS
 
 #include "Arduino.h"
 
-class TSYS01 {
+class TSYS01
+{
 public:
+    TSYS01();
 
-	TSYS01();
+    void init();
 
-	void init();
+    /** The read from I2C takes up for 40 ms, so use sparingly is possible.
+     * 
+     */
+    void read();
 
-	/** The read from I2C takes up for 40 ms, so use sparingly is possible.
-	 */
-	void read();
+    /** Launch a read without waiting 10 ms ADC conversion
+     * 
+     */
+    void prepareRead();
 
-	/** This function loads the datasheet test case values to verify that
+    /** The read used after prepareRead.
+     * 
+     */
+    void nowRead();
+
+    /** This function loads the datasheet test case values to verify that
 	 *  calculations are working correctly. No example checksum is provided
 	 *  so the checksum test may fail.
 	 */
-	void readTestCase();
+    void readTestCase();
 
-	/** Temperature returned in deg C.
+    /** Temperature returned in deg C.
 	 */
-	float temperature();
+    float temperature();
 
 private:
-	uint16_t C[8];
-	uint32_t D1;
-	float TEMP;
-	uint32_t adc;
+    uint16_t C[8];
+    uint32_t D1;
+    float TEMP;
+    uint32_t adc;
 
-	/** Performs calculations per the sensor data sheet for conversion and
+    /** Performs calculations per the sensor data sheet for conversion and
 	 *  second order compensation.
 	 */
-	void calculate();
-
+    void calculate();
 };
 
 #endif
