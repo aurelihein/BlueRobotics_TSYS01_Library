@@ -118,7 +118,7 @@ float TSYS01::temperature()
 #ifdef TEMPERATURE_FLOAT_WITH_TWO_DECIMAL
     return TEMP;
 #else  /* TEMPERATURE_FLOAT_AS_ACCURACY */
-    float returned = (uint16_t)(TEMP * 10);
+    float returned = (int16_t)(TEMP * 10);
     returned /= 10;
     // serial_print_info(F("the_input:"));
     // serial_println_info(the_input);
