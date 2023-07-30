@@ -9,27 +9,41 @@
 
 TSYS01::TSYS01()
 {
+    nb_of_tries_before_getting_temp=0;
 }
 
-void TSYS01::init()
+bool TSYS01::init()
 {
     // Reset the TSYS01, per datasheet
     Wire.beginTransmission(TSYS01_ADDR);
     Wire.write(TSYS01_RESET);
-    Wire.endTransmission();
+    if(Wire.endTransmission()){
+        //Success is 0
+        return false;
+    }
 
     delay(10);
 
-    // Read calibration values
-    for (uint8_t i = 0; i < 8; i++)
-    {
-        Wire.beginTransmission(TSYS01_ADDR);
-        Wire.write(TSYS01_PROM_READ + (i << 1));
-        Wire.endTransmission();
+    int received_bytes = 0;
+    for(uint8_t tries = 1; tries <= 5; tries++){
+        // Read calibration values
+        for (uint8_t i = 0; i < 8; i++)
+        {
+            Wire.beginTransmission(TSYS01_ADDR);
+            Wire.write(TSYS01_PROM_READ + (i << 1));
+            Wire.endTransmission();
 
-        Wire.requestFrom(TSYS01_ADDR, 2);
-        C[i] = (Wire.read() << 8) | Wire.read();
+            received_bytes += Wire.requestFrom(TSYS01_ADDR, 2);
+            C[i] = (Wire.read() << 8) | Wire.read();
+        }
+        nb_of_tries_before_getting_temp = tries;
+        //if(true){
+        if(received_bytes && is_crc_ok()){
+            return true;
+        }
+        delay(100);
     }
+    return false;
 }
 
 void TSYS01::prepareRead()
@@ -48,26 +62,7 @@ void TSYS01::nowRead()
     Wire.requestFrom(TSYS01_ADDR, 3);
     D1 = Wire.read();
     D1 = (D1 << 8) | Wire.read();
-    D1 = (D1 << 8) | Wire.read();
-    calculate();
-}
-
-void TSYS01::read()
-{
-    Wire.beginTransmission(TSYS01_ADDR);
-    Wire.write(TSYS01_ADC_TEMP_CONV);
-    Wire.endTransmission();
-
-    delay(10); // Max conversion time per datasheet
-
-    Wire.beginTransmission(TSYS01_ADDR);
-    Wire.write(TSYS01_ADC_READ);
-    Wire.endTransmission();
-
-    Wire.requestFrom(TSYS01_ADDR, 3);
-    D1 = Wire.read();
-    D1 = (D1 << 8) | Wire.read();
-    D1 = (D1 << 8) | Wire.read();
+    Wire.read();//Drop this data
     calculate();
 }
 
@@ -86,31 +81,66 @@ void TSYS01::readTestCase()
     calculate();
 }
 
-uint64_t tsys01_simple_pow(uint32_t input, uint8_t loop)
+void TSYS01::read()
 {
-#ifdef TSYS01_USE_STANDARD_POW
-    return pow(input, loop);
-#else /* TEMPERATURE_FLOAT_WITH_TWO_DECIMAL */
-    uint64_t returned = input;
-    loop--;
-    while (loop)
-    {
-        returned *= input;
-        loop--;
-    }
-    return returned;
-#endif /* TEMPERATURE_FLOAT_WITH_TWO_DECIMAL */
+    Wire.beginTransmission(TSYS01_ADDR);
+    Wire.write(TSYS01_ADC_TEMP_CONV);
+    Wire.endTransmission();
+
+    delay(20); // Max conversion time per datasheet(8.5ms(might be lower with less power))
+
+    Wire.beginTransmission(TSYS01_ADDR);
+    Wire.write(TSYS01_ADC_READ);
+    Wire.endTransmission();
+
+    Wire.requestFrom(TSYS01_ADDR, 3);
+    D1 = Wire.read();
+    D1 = (D1 << 8) | Wire.read();
+    Wire.read();//We don't care about this one
+    calculate();
 }
 
 void TSYS01::calculate()
 {
-    adc = D1 >> 8;
+	TEMP += (-2.0)*C[1];
+	TEMP *= ((float)D1) / 100000;
+	TEMP += (4.0)*C[2];
+	TEMP *= ((float)D1) / 100000;
+	TEMP += (-2.0)*C[3];
+	TEMP *= ((float)D1) / 100000;
+	TEMP += C[4];
+	TEMP *= ((float)D1) / 100000;
+	TEMP *= 10;
+	TEMP += (-1.5)*C[5];
+	TEMP /= 100;
+}
 
-    TEMP = (-2) * float(C[1]) / 1000000000000000000000.0f * tsys01_simple_pow(adc, 4) +
-           4 * float(C[2]) / 10000000000000000.0f * tsys01_simple_pow(adc, 3) +
-           (-2) * float(C[3]) / 100000000000.0f * tsys01_simple_pow(adc, 2) +
-           1 * float(C[4]) / 1000000.0f * adc +
-           (-1.5) * float(C[5]) / 100;
+uint8_t TSYS01::compute_coefficient_crc(){
+    uint8_t loop,returned = 0;
+    for(loop=0; loop<8;loop++){
+        returned += (C[loop]>>8)&0xFF;
+        returned += C[loop]&0xFF;
+    }
+	return returned;
+}
+
+bool TSYS01::is_crc_ok(void) {
+	return ((compute_coefficient_crc() & 0xFF)==0);
+}
+
+uint32_t TSYS01::serial(void) {
+    return ((C[7]<<8)&0xFFFF00)+((C[8]>>8)&0xFF);
+}
+
+uint16_t TSYS01::get_coef_at_pos(uint8_t coef_pos) {
+    if((0<coef_pos)&&(coef_pos<8)){
+        return (C[coef_pos]);
+    }
+    return 0xFFFF;
+}
+
+uint8_t TSYS01::get_nb_of_tries_before_getting_temp(void) {
+    return nb_of_tries_before_getting_temp;
 }
 
 float TSYS01::temperature()

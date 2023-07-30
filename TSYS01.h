@@ -38,7 +38,10 @@ class TSYS01
 public:
     TSYS01();
 
-    void init();
+    /** Init the sensor, return 0 if detected and CRC is good
+     * 
+     */
+    bool init();
 
     /** The read from I2C takes up for 40 ms, so use sparingly is possible.
      * 
@@ -56,25 +59,43 @@ public:
     void nowRead();
 
     /** This function loads the datasheet test case values to verify that
-	 *  calculations are working correctly. No example checksum is provided
-	 *  so the checksum test may fail.
-	 */
+     *  calculations are working correctly. No example checksum is provided
+     *  so the checksum test may fail.
+     */
     void readTestCase();
 
     /** Temperature returned in deg C.
-	 */
+    */
     float temperature();
+
+    /** Check CRC was correct
+    */
+    bool is_crc_ok();
+
+    /** Get Serial
+    */
+    uint32_t serial();
+
+    /** Get Number of tries before getting the temperature
+    */
+    uint8_t get_nb_of_tries_before_getting_temp();
+
+    /** Get Coef at position
+    */
+    uint16_t get_coef_at_pos(uint8_t coef_pos);
 
 private:
     uint16_t C[8];
     uint32_t D1;
     float TEMP;
     uint32_t adc;
+    uint8_t nb_of_tries_before_getting_temp;
 
     /** Performs calculations per the sensor data sheet for conversion and
 	 *  second order compensation.
 	 */
     void calculate();
+    uint8_t compute_coefficient_crc();
 };
 
 #endif
